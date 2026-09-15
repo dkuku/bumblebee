@@ -23,6 +23,24 @@ defmodule Bumblebee.Audio do
   """
   @type audio :: Nx.t() | Enumerable.t(Nx.t()) | {:file, String.t()}
 
+  @doc """
+  Splits a continuous audio stream into overlapping chunks.
+
+  `audio` must be an enumerable of one-dimensional tensors containing
+  consecutive samples. The enumerable may contain tensors of different sizes.
+  The returned stream emits chunks of `chunk_num_seconds`, with
+  `context_num_seconds` of overlap on both sides of each split point. The
+  context is included in the chunk length.
+
+  A final shorter chunk is emitted when the input does not end at a chunk
+  boundary.
+  """
+  @spec chunk_audio(Enumerable.t(Nx.t()), number(), number(), number()) ::
+          Enumerable.t(Nx.t())
+  defdelegate chunk_audio(audio, sampling_rate, chunk_num_seconds, context_num_seconds),
+    to: Bumblebee.Audio.Chunking,
+    as: :chunk
+
   @type speech_to_text_whisper_input ::
           audio() | %{:audio => audio(), optional(:seed) => integer() | nil}
   @type speech_to_text_whisper_output :: %{
