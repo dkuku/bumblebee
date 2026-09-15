@@ -32,10 +32,25 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
 
     predict = elem(Axon.build(model), 1)
 
+    text_predict =
+      spec
+      |> text_model()
+      |> Axon.build()
+      |> elem(1)
+
     predict =
       Shared.compile_or_jit(
         fn params, inputs -> predict.(params, inputs) end,
         :qwen3_asr_step,
+        defn_options,
+        false,
+        fn -> [] end
+      )
+
+    text_predict =
+      Shared.compile_or_jit(
+        fn params, inputs -> text_predict.(params, inputs) end,
+        :qwen3_asr_text_step,
         defn_options,
         false,
         fn -> [] end
@@ -65,6 +80,7 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
         tokenizer,
         spec,
         predict,
+        text_predict,
         params,
         generation_config,
         max_new_tokens,
@@ -94,6 +110,7 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
          tokenizer,
          spec,
          predict,
+         text_predict,
          params,
          generation_config,
          max_new_tokens,
@@ -116,12 +133,28 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
       |> Map.put("seed", Nx.tensor([seed], type: :s64))
 
     generated_ids =
-      greedy_decode(predict, params, spec, inputs, generation_config, max_new_tokens)
+      greedy_decode(
+        predict,
+        text_predict,
+        params,
+        spec,
+        inputs,
+        generation_config,
+        max_new_tokens
+      )
 
     Bumblebee.Tokenizer.decode(tokenizer, generated_ids)
   end
 
-  defp greedy_decode(predict, params, spec, inputs, generation_config, max_new_tokens) do
+  defp greedy_decode(
+         predict,
+         text_predict,
+         params,
+         spec,
+         inputs,
+         generation_config,
+         max_new_tokens
+       ) do
     prompt_length = Nx.axis_size(inputs["input_ids"], 1)
     cache = Bumblebee.Text.Generation.init_cache(spec, 1, prompt_length + max_new_tokens, inputs)
 
@@ -140,20 +173,36 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
           {:halt, {outputs, generated}}
         else
           next_inputs = %{
-            "input_features" => inputs["input_features"],
-            "input_features_mask" => inputs["input_features_mask"],
             "input_ids" => Nx.tensor([[token]], type: :s64),
             "attention_mask" => Nx.tensor([[1]], type: :u32),
             "position_ids" => next_position_ids(inputs["position_ids"]),
             "cache" => outputs.cache
           }
 
-          {:cont, {predict.(params, next_inputs), generated}}
+          {:cont, {text_predict.(params, next_inputs), generated}}
         end
       end)
 
     _ = outputs
     generated
+  end
+
+  defp text_model(spec) do
+    inputs =
+      Bumblebee.Utils.Model.inputs_to_map([
+        Axon.input("input_ids", shape: {nil, nil}),
+        Axon.input("attention_mask", shape: {nil, nil}, optional: true),
+        Axon.input("position_ids", shape: {nil, nil}, optional: true),
+        Axon.input("attention_head_mask",
+          shape: {spec.text_config.num_blocks, spec.text_config.num_attention_heads},
+          optional: true
+        ),
+        Axon.input("cache", optional: true)
+      ])
+
+    Bumblebee.Text.Qwen3.model_from_inputs(spec.text_config, inputs,
+      name_prefix: "language_model"
+    )
   end
 
   defp position_ids(attention_mask) do
