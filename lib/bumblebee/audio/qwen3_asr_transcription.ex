@@ -9,6 +9,7 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
       Keyword.validate!(opts, [
         :chunk_num_seconds,
         :context_num_seconds,
+        :client_batch_size,
         :max_new_tokens,
         :seed,
         progress: nil,
@@ -57,8 +58,7 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
         samples
       end
 
-    samples
-    |> Enum.map(fn samples ->
+    transcribe_chunk = fn samples ->
       transcribe_chunk(
         samples,
         featurizer,
@@ -70,7 +70,15 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
         max_new_tokens,
         Keyword.get(opts, :seed, 0)
       )
-    end)
+    end
+
+    samples
+    |> Task.async_stream(transcribe_chunk,
+      max_concurrency: Keyword.get(opts, :client_batch_size, 1),
+      ordered: true,
+      timeout: :infinity
+    )
+    |> Enum.map(fn {:ok, text} -> text end)
     |> Enum.with_index(1)
     |> Enum.map(fn {text, index} ->
       if progress, do: progress.(index, text)
