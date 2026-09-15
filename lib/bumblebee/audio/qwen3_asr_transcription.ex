@@ -11,8 +11,15 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
         :context_num_seconds,
         :max_new_tokens,
         :seed,
+        progress: nil,
         defn_options: [compiler: EXLA]
       ])
+
+    progress = Keyword.get(opts, :progress)
+
+    if progress && not is_function(progress, 2) do
+      raise ArgumentError, ":progress must be a function accepting chunk index and text"
+    end
 
     %{model: model, params: params, spec: spec} = model_info
     max_new_tokens = Keyword.get(opts, :max_new_tokens, generation_config.max_new_tokens)
@@ -63,6 +70,11 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
         max_new_tokens,
         Keyword.get(opts, :seed, 0)
       )
+    end)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {text, index} ->
+      if progress, do: progress.(index, text)
+      text
     end)
     |> Enum.map_join(" ", &String.trim/1)
     |> String.trim()

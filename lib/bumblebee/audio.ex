@@ -212,7 +212,9 @@ defmodule Bumblebee.Audio do
 
   Set `:chunk_num_seconds` to enable long-form transcription. The chunks are
   decoded and joined into one string; `:context_num_seconds` controls overlap
-  between chunks and defaults to one sixth of the chunk duration.
+  between chunks and defaults to one sixth of the chunk duration. The optional
+  `:progress` callback receives `chunk_index` and `text` after each chunk is
+  transcribed, which can be used to log progress or persist partial output.
   """
   defdelegate transcribe_qwen3_asr(
                 model_info,
