@@ -165,6 +165,7 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
     |> Nx.slice_along_axis(Nx.axis_size(logits, 1) - 1, 1, axis: 1)
     |> Nx.squeeze(axes: [1])
     |> Nx.argmax(axis: -1)
+    |> Nx.squeeze()
     |> Nx.backend_transfer(Nx.BinaryBackend)
     |> Nx.to_number()
   end
