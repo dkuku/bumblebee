@@ -216,6 +216,28 @@ defmodule Bumblebee.Text.Qwen3 do
     })
   end
 
+  @doc false
+  def model_from_inputs(
+        %__MODULE__{architecture: :for_causal_language_modeling} = spec,
+        inputs,
+        opts \\ []
+      ) do
+    name_prefix = opts[:name_prefix]
+    outputs = core(inputs, spec, name_prefix)
+
+    logits =
+      language_modeling_head(outputs.hidden_state, spec,
+        name: join(name_prefix, "language_modeling_head")
+      )
+
+    Layers.output(%{
+      logits: logits,
+      hidden_states: outputs.hidden_states,
+      attentions: outputs.attentions,
+      cache: outputs.cache
+    })
+  end
+
   def model(%__MODULE__{architecture: :for_sequence_classification} = spec) do
     inputs = inputs(spec)
 
@@ -271,13 +293,13 @@ defmodule Bumblebee.Text.Qwen3 do
     ])
   end
 
-  defp core(inputs, spec) do
+  defp core(inputs, spec, name_prefix \\ nil) do
     embeddings =
       embedder(
         inputs["input_ids"],
         inputs["input_embeddings"],
         spec,
-        name: "embedder"
+        name: join(name_prefix, "embedder")
       )
 
     position_ids =
@@ -293,12 +315,12 @@ defmodule Bumblebee.Text.Qwen3 do
         inputs["attention_head_mask"],
         inputs["cache"],
         spec,
-        name: "decoder"
+        name: join(name_prefix, "decoder")
       )
 
     hidden_state =
       Layers.rms_norm(decoder_outputs.hidden_state,
-        name: "output_norm",
+        name: join(name_prefix, "output_norm"),
         epsilon: spec.layer_norm_epsilon
       )
 
@@ -410,6 +432,15 @@ defmodule Bumblebee.Text.Qwen3 do
   defimpl Bumblebee.HuggingFace.Transformers.Config do
     def load(spec, data) do
       import Shared.Converters
+
+      # Newer Qwen3 configs store rope_theta inside rope_parameters, while
+      # older Transformers configs expose it at the top level.
+      data =
+        if is_nil(data["rope_theta"]) and is_map(data["rope_parameters"]) do
+          Map.put(data, "rope_theta", data["rope_parameters"]["rope_theta"])
+        else
+          data
+        end
 
       scaling_strategy_converter = fn _name, value ->
         case value do

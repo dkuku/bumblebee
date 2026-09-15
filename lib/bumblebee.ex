@@ -66,6 +66,7 @@ defmodule Bumblebee do
 
   @config_filename "config.json"
   @featurizer_filename "preprocessor_config.json"
+  @processor_filename "processor_config.json"
   @tokenizer_filename "tokenizer.json"
   @tokenizer_config_filename "tokenizer_config.json"
   @tokenizer_special_tokens_filename "special_tokens_map.json"
@@ -226,6 +227,7 @@ defmodule Bumblebee do
     "ViTModel" => {Bumblebee.Vision.Vit, :base},
     "WhisperModel" => {Bumblebee.Audio.Whisper, :base},
     "WhisperForConditionalGeneration" => {Bumblebee.Audio.Whisper, :for_conditional_generation},
+    "Qwen3ASRForConditionalGeneration" => {Bumblebee.Audio.Qwen3ASR, :for_conditional_generation},
     # These models are just RoBERTa models, but the config will list them as XLM-RoBERTa
     "XLMRobertaForCausalLM" => {Bumblebee.Text.Roberta, :for_causal_language_modeling},
     "XLMRobertaForMaskedLM" => {Bumblebee.Text.Roberta, :for_masked_language_modeling},
@@ -246,7 +248,8 @@ defmodule Bumblebee do
     "ConvNextFeatureExtractor" => Bumblebee.Vision.ConvNextFeaturizer,
     "DeiTFeatureExtractor" => Bumblebee.Vision.DeitFeaturizer,
     "ViTFeatureExtractor" => Bumblebee.Vision.VitFeaturizer,
-    "WhisperFeatureExtractor" => Bumblebee.Audio.WhisperFeaturizer
+    "WhisperFeatureExtractor" => Bumblebee.Audio.WhisperFeaturizer,
+    "Qwen3ASRFeatureExtractor" => Bumblebee.Audio.Qwen3ASRFeaturizer
   }
 
   @transformers_image_processor_type_to_featurizer %{
@@ -259,7 +262,8 @@ defmodule Bumblebee do
     "deit" => Bumblebee.Vision.DeitFeaturizer,
     "resnet" => Bumblebee.Vision.ConvNextFeaturizer,
     "vit" => Bumblebee.Vision.VitFeaturizer,
-    "whisper" => Bumblebee.Audio.WhisperFeaturizer
+    "whisper" => Bumblebee.Audio.WhisperFeaturizer,
+    "qwen3_asr" => Bumblebee.Audio.Qwen3ASRFeaturizer
   }
 
   @model_type_to_tokenizer_type %{
@@ -287,6 +291,7 @@ defmodule Bumblebee do
     "phi" => :code_gen,
     "phi3" => :llama,
     "qwen3" => :qwen2,
+    "qwen3_asr" => :qwen2,
     "roberta" => :roberta,
     "smollm3" => :smollm3,
     "t5" => :t5,
@@ -835,9 +840,20 @@ defmodule Bumblebee do
     module = opts[:module]
 
     case get_repo_files(repository) do
-      {:ok, %{@featurizer_filename => etag} = repo_files} ->
-        with {:ok, path} <- download(repository, @featurizer_filename, etag),
+      {:ok, repo_files}
+      when is_map_key(repo_files, @featurizer_filename) or
+             is_map_key(repo_files, @processor_filename) ->
+        {filename, etag} =
+          if Map.has_key?(repo_files, @featurizer_filename) do
+            {@featurizer_filename, repo_files[@featurizer_filename]}
+          else
+            {@processor_filename, repo_files[@processor_filename]}
+          end
+
+        with {:ok, path} <- download(repository, filename, etag),
              {:ok, featurizer_data} <- decode_config(path) do
+          featurizer_data = Map.get(featurizer_data, "feature_extractor", featurizer_data)
+
           module =
             module ||
               case infer_featurizer_type(featurizer_data, repository, repo_files) do
@@ -870,6 +886,10 @@ defmodule Bumblebee do
       module ->
         {:ok, module}
     end
+  end
+
+  defp infer_featurizer_type(%{"feature_extractor" => feature_extractor}, repository, repo_files) do
+    infer_featurizer_type(feature_extractor, repository, repo_files)
   end
 
   defp infer_featurizer_type(%{"image_processor_type" => class_name}, _repository, _repo_files) do

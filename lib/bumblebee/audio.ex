@@ -202,4 +202,26 @@ defmodule Bumblebee.Audio do
                 opts \\ []
               ),
               to: Bumblebee.Audio.SpeechToTextWhisper
+
+  @doc """
+  Transcribes one audio file or waveform with Qwen3-ASR.
+
+  The model, featurizer, tokenizer and generation config can be loaded with
+  `Bumblebee.load_model/2`, `Bumblebee.load_featurizer/2`,
+  `Bumblebee.load_tokenizer/2` and `Bumblebee.load_generation_config/2`.
+
+  Set `:chunk_num_seconds` to enable long-form transcription. The chunks are
+  decoded and joined into one string; `:context_num_seconds` controls overlap
+  between chunks and defaults to one sixth of the chunk duration.
+  """
+  defdelegate transcribe_qwen3_asr(
+                model_info,
+                featurizer,
+                tokenizer,
+                generation_config,
+                input,
+                opts \\ []
+              ),
+              to: Bumblebee.Audio.Qwen3ASRTranscription,
+              as: :transcribe
 end
