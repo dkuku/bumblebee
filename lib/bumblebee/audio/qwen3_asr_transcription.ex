@@ -197,6 +197,10 @@ defmodule Bumblebee.Audio.Qwen3ASRTranscription do
           shape: {spec.text_config.num_blocks, spec.text_config.num_attention_heads},
           optional: true
         ),
+        Axon.input("input_embeddings",
+          shape: {nil, nil, spec.text_config.hidden_size},
+          optional: true
+        ),
         Axon.input("cache", optional: true)
       ])
 
