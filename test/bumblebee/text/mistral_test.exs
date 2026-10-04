@@ -28,6 +28,34 @@ defmodule Bumblebee.Text.MistralTest do
     )
   end
 
+  test ":base with bidirectional attention" do
+    assert {:ok, %{model: model, params: params, spec: spec}} =
+             Bumblebee.load_model({:hf, "hf-internal-testing/tiny-random-MistralModel"},
+               spec_overrides: [use_bidirectional_attention: true]
+             )
+
+    assert %Bumblebee.Text.Mistral{
+             architecture: :base,
+             use_bidirectional_attention: true
+           } = spec
+
+    inputs = %{
+      "input_ids" => Nx.tensor([[10, 20, 30, 40, 50, 60, 70, 80, 0, 0]]),
+      "attention_mask" => Nx.tensor([[1, 1, 1, 1, 1, 1, 1, 1, 0, 0]])
+    }
+
+    outputs = Axon.predict(model, params, inputs)
+
+    assert Nx.shape(outputs.hidden_state) == {1, 10, 32}
+
+    assert_all_close(
+      outputs.hidden_state[[.., 1..3, 1..3]],
+      Nx.tensor([
+        [[1.2381, -1.0871, 0.5317], [-2.1567, -1.1400, -0.9124], [-1.6604, -1.2588, 0.9088]]
+      ])
+    )
+  end
+
   test ":base with attention sliding window" do
     assert {:ok, spec} =
              Bumblebee.load_spec({:hf, "hf-internal-testing/tiny-random-MistralModel"})

@@ -29,6 +29,34 @@ defmodule Bumblebee.Text.Qwen3Test do
     )
   end
 
+  test ":base with bidirectional attention" do
+    assert {:ok, %{model: model, params: params, spec: spec}} =
+             Bumblebee.load_model({:hf, "bumblebee-testing/tiny-random-Qwen3Model"},
+               spec_overrides: [use_bidirectional_attention: true]
+             )
+
+    assert %Bumblebee.Text.Qwen3{
+             architecture: :base,
+             use_bidirectional_attention: true
+           } = spec
+
+    inputs = %{
+      "input_ids" => Nx.tensor([[10, 20, 30, 40, 50, 60, 70, 80, 0, 0]]),
+      "attention_mask" => Nx.tensor([[1, 1, 1, 1, 1, 1, 1, 1, 0, 0]])
+    }
+
+    outputs = Axon.predict(model, params, inputs)
+
+    assert Nx.shape(outputs.hidden_state) == {1, 10, 32}
+
+    assert_all_close(
+      outputs.hidden_state[[.., 1..3, 1..3]],
+      Nx.tensor([
+        [[0.0081, -2.4884, 2.1160], [-0.2382, -1.7343, 0.7843], [-0.4632, -0.7441, 1.4732]]
+      ])
+    )
+  end
+
   test ":for_causal_language_modeling" do
     assert {:ok, %{model: model, params: params, spec: spec}} =
              Bumblebee.load_model({:hf, "bumblebee-testing/tiny-random-Qwen3ForCausalLM"})

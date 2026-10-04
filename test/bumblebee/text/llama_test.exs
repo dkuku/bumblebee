@@ -28,6 +28,34 @@ defmodule Bumblebee.Text.LlamaTest do
     )
   end
 
+  test ":base with bidirectional attention" do
+    assert {:ok, %{model: model, params: params, spec: spec}} =
+             Bumblebee.load_model({:hf, "bumblebee-testing/tiny-random-LlamaModel"},
+               spec_overrides: [use_bidirectional_attention: true]
+             )
+
+    assert %Bumblebee.Text.Llama{
+             architecture: :base,
+             use_bidirectional_attention: true
+           } = spec
+
+    inputs = %{
+      "input_ids" => Nx.tensor([[10, 20, 30, 40, 50, 60, 70, 80, 0, 0]]),
+      "attention_mask" => Nx.tensor([[1, 1, 1, 1, 1, 1, 1, 1, 0, 0]])
+    }
+
+    outputs = Axon.predict(model, params, inputs)
+
+    assert Nx.shape(outputs.hidden_state) == {1, 10, 32}
+
+    assert_all_close(
+      outputs.hidden_state[[.., 1..3, 1..3]],
+      Nx.tensor([
+        [[1.9005, -1.7194, 0.4669], [2.6855, 0.2850, -0.4795], [0.8806, 0.6820, -1.3584]]
+      ])
+    )
+  end
+
   test ":base rotary embedding scaling strategy :llama3" do
     assert {:ok, %{model: model, params: params, spec: spec}} =
              Bumblebee.load_model(

@@ -67,7 +67,12 @@ defmodule Bumblebee.Text.Llama do
         doc: "whether to tie input and output embedding weights"
       ]
     ] ++
-      Shared.common_options([:rotary_embedding_scaling_strategy, :num_labels, :id_to_label]) ++
+      Shared.common_options([
+        :use_bidirectional_attention,
+        :rotary_embedding_scaling_strategy,
+        :num_labels,
+        :id_to_label
+      ]) ++
       Shared.token_options(pad_token_id: 0)
 
   @moduledoc """
@@ -338,7 +343,7 @@ defmodule Bumblebee.Text.Llama do
             num_key_value_heads: spec.num_key_value_heads,
             hidden_size: spec.hidden_size,
             attention_head_size: spec.attention_head_size,
-            causal: true,
+            causal: not spec.use_bidirectional_attention,
             rotary_embedding: [
               position_ids: position_ids,
               max_positions: spec.max_positions,

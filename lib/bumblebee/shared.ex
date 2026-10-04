@@ -29,6 +29,10 @@ defmodule Bumblebee.Shared do
           "whether cross-attention layers should be added to the model. " <>
             "This is only relevant for decoder models"
       ],
+      use_bidirectional_attention: [
+        default: false,
+        doc: "whether to use bidirectional attention instead of causal attention"
+      ],
       rotary_embedding_scaling_strategy: [
         default: nil,
         doc: """
@@ -113,9 +117,28 @@ defmodule Bumblebee.Shared do
   def common_options_from_transformers(data, spec) do
     import Bumblebee.Shared.Converters
 
+    data =
+      case data do
+        %{"is_causal" => is_causal, "use_bidirectional_attention" => use_bidirectional}
+        when is_boolean(is_causal) and is_boolean(use_bidirectional) and
+               is_causal == use_bidirectional ->
+          raise ArgumentError,
+                "conflicting configuration: \"is_causal\" is #{is_causal}, but \"use_bidirectional_attention\" is #{use_bidirectional}"
+
+        %{"is_causal" => false} ->
+          Map.put_new(data, "use_bidirectional_attention", true)
+
+        %{"is_causal" => true} ->
+          Map.put_new(data, "use_bidirectional_attention", false)
+
+        _other ->
+          data
+      end
+
     converters = [
       output_hidden_states: {"output_hidden_states", boolean()},
       output_attentions: {"output_attentions", boolean()},
+      use_bidirectional_attention: {"use_bidirectional_attention", boolean()},
       num_labels: {"num_labels", number()},
       id_to_label: {"id2label", map(integer_as_string(), string())},
       use_cross_attention: {"use_cross_attention", false},

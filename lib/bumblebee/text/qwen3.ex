@@ -70,7 +70,12 @@ defmodule Bumblebee.Text.Qwen3 do
         doc: "whether to use RMS normalization on query and key projections"
       ]
     ] ++
-      Shared.common_options([:rotary_embedding_scaling_strategy, :num_labels, :id_to_label]) ++
+      Shared.common_options([
+        :use_bidirectional_attention,
+        :rotary_embedding_scaling_strategy,
+        :num_labels,
+        :id_to_label
+      ]) ++
       Shared.token_options(pad_token_id: 151_643)
 
   @moduledoc """
@@ -347,7 +352,7 @@ defmodule Bumblebee.Text.Qwen3 do
             num_key_value_heads: spec.num_key_value_heads,
             hidden_size: spec.hidden_size,
             attention_head_size: spec.attention_head_size,
-            causal: true,
+            causal: not spec.use_bidirectional_attention,
             query_norm: qk_norm,
             key_norm: qk_norm,
             rotary_embedding: [

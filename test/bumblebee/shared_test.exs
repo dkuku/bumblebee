@@ -28,4 +28,46 @@ defmodule Bumblebee.SharedTest do
                    end
     end
   end
+
+  describe "common_options_from_transformers/2" do
+    test "loads use_bidirectional_attention from is_causal: false" do
+      spec = %{use_bidirectional_attention: false}
+      data = %{"is_causal" => false}
+
+      assert Shared.common_options_from_transformers(data, spec) == [
+               use_bidirectional_attention: true
+             ]
+    end
+
+    test "loads use_bidirectional_attention when explicitly true" do
+      spec = %{use_bidirectional_attention: false}
+      data = %{"use_bidirectional_attention" => true}
+
+      assert Shared.common_options_from_transformers(data, spec) == [
+               use_bidirectional_attention: true
+             ]
+    end
+
+    test "raises when is_causal and use_bidirectional_attention conflict" do
+      spec = %{use_bidirectional_attention: false}
+
+      assert_raise ArgumentError,
+                   ~s/conflicting configuration: "is_causal" is true, but "use_bidirectional_attention" is true/,
+                   fn ->
+                     Shared.common_options_from_transformers(
+                       %{"is_causal" => true, "use_bidirectional_attention" => true},
+                       spec
+                     )
+                   end
+
+      assert_raise ArgumentError,
+                   ~s/conflicting configuration: "is_causal" is false, but "use_bidirectional_attention" is false/,
+                   fn ->
+                     Shared.common_options_from_transformers(
+                       %{"is_causal" => false, "use_bidirectional_attention" => false},
+                       spec
+                     )
+                   end
+    end
+  end
 end

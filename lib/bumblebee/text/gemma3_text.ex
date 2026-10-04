@@ -92,13 +92,14 @@ defmodule Bumblebee.Text.Gemma3Text do
       tie_word_embeddings: [
         default: true,
         doc: "whether to tie input and output embedding weights"
-      ],
-      use_bidirectional_attention: [
-        default: false,
-        doc: "whether to use bidirectional attention instead of causal attention"
       ]
     ] ++
-      Shared.common_options([:rotary_embedding_scaling_strategy, :num_labels, :id_to_label]) ++
+      Shared.common_options([
+        :use_bidirectional_attention,
+        :rotary_embedding_scaling_strategy,
+        :num_labels,
+        :id_to_label
+      ]) ++
       Shared.token_options(pad_token_id: 0)
 
   @moduledoc """
@@ -539,8 +540,7 @@ defmodule Bumblebee.Text.Gemma3Text do
                  "full_attention" => :full_attention
                })
              )},
-          tie_word_embeddings: {"tie_word_embeddings", boolean()},
-          use_bidirectional_attention: {"use_bidirectional_attention", boolean()}
+          tie_word_embeddings: {"tie_word_embeddings", boolean()}
         ) ++
           Shared.rotary_embedding_options_from_transformers(data) ++
           Shared.common_options_from_transformers(data, spec)
